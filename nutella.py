@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+""" Gnutella like node system """
 
 import argparse
 import socket
@@ -6,6 +7,7 @@ import threading
 import signal
 import sys
 from rest import ThreadedHTTPServer, NodeHttpHandler
+from node import Node
 
 def parse_args():
     """ Parse command line arguments """
@@ -14,7 +16,7 @@ def parse_args():
     parser = argparse.ArgumentParser(prog="nutella", description="P2P network")
 
     parser.add_argument("-p", "--port", type=int, default=default_port,
-        help="port number to listen on, default %d" %default_port)
+    help="port number to listen on, default: {}".format(default_port))
 
     parser.add_argument("--timeout", type=float, default=default_timeout)
 
@@ -24,7 +26,7 @@ def start_http():
     """ Try to start a HTTP server.
         On error: exit """
     try:
-        server = ThreadedHTTPServer(('', ARGS.port), NodeHttpHandler)
+        server = ThreadedHTTPServer(('', THIS_NODE.port), NodeHttpHandler)
     except:
         sys.exit(1)
 
@@ -34,7 +36,8 @@ def start_http():
 if __name__ == "__main__":
     ARGS = parse_args()
     HOSTNAME = socket.gethostname()
-    print "Hostname:", HOSTNAME
+    THIS_NODE = Node(HOSTNAME, ARGS.port)
+    print "Hostname: {} Port: {}".format(THIS_NODE.hostname, THIS_NODE.port)
     HTTP_SERVER = start_http()
 
     def run_server():

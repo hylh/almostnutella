@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+""" Test suite for gnutella like nodes """
 
 import argparse
 import httplib
@@ -73,13 +74,13 @@ def parse_args():
             description="Test of starting nodes")
 
     parser.add_argument("-n", "--num_nodes", type=int, default=default_nodes,
-            help="how many nodes to start, default %d" % default_nodes)
+    help="how many nodes to start, default: {}".format(default_nodes))
 
     parser.add_argument("-host", "--hostname", type=str, default=default_host,
             help="which node to connect to")
 
     parser.add_argument("-p", "--port", type=int, default=default_port,
-            help="which port to use, default %d" % default_port)
+    help="which port to use, default: {}".format(default_port))
 
     return parser.parse_args()
 
@@ -93,4 +94,4 @@ if __name__ == "__main__":
     START = timer()
     NODE_TEST.test_get()
     END = timer()
-    print "TEST used: %.4f seconds" % (END - START)
+    print "TEST used: {:.4f} seconds".format(END - START)
