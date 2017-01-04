@@ -92,6 +92,8 @@ if __name__ == "__main__":
     NODE_TEST = NodeTest()
 
     START = timer()
+    NODE_TEST.test_failed_get()
+    NODE_TEST.test_post_addnode()
     NODE_TEST.test_get()
     END = timer()
     print "TEST used: {:.4f} seconds".format(END - START)
