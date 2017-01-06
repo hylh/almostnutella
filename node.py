@@ -28,13 +28,20 @@ class Node(object):
             self.neighbour.append(hostname)
             print "Added neighbour"
 
-    def remove_neighbour(self):
+    def remove_neighbour(self, name):
         """ Remove a host from neighbour list """
+        if name in self.neighbour:
+            self.neighbour.remove(name)
 
     def create_remote_hostname(self, host, port):
         """ Create a RPC compatible hostname """
         hostname = "http://" + host + ":" + str(port)
         return hostname
 
-    def split_hostname(self):
+    def split_hostname(self, name, symbol):
         """ Split hostname and return name and port """
+        split = name.split(symbol)
+        name = split[0]
+        port = split[1]
+        return name, port
+

@@ -30,14 +30,17 @@ class NodeHttpHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         """ Reponse to a POST message to the server """
         if self.path == "/addNode":
+            #Add a new node to the system
             new_node = start_new_node()
-            #This needs to find a list of nodes
-            #Try to start a new node
-            #And add neighbours to the new node and old nodes
-            #Check gnutella documentation
             if new_node == None:
                 return self.not_found()
             return self.send_text(new_node)
+
+        if self.path == "/shutdown":
+            #Shutdown this node
+            self.send_response(200)
+            self.end_headers()
+            kill()
 
     def send_text(self, text):
         """ Send 200 OK response with text to HTTP request """
@@ -58,6 +61,38 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 class ThreadedRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
     """ Handle requests in a separate thread """
+
+def kill():
+    """ Shutdown this node """
+    neighbours = THIS_NODE.get_neighbour_list()
+    remove_host = THIS_NODE.hostname
+    if isinstance(neighbours, basestring):
+        #Check if it's a string, if so, only on object in list
+        host, _ = THIS_NODE.split_hostname(neighbours, ":")
+        remove(host, remove_host)
+    else:
+        for node in neighbours:
+            remove(node, remove_host)
+        #Tell the other nodes that we are exiting
+    RPC.shutdown()
+    HTTP_SERVER.shutdown()
+
+def remove(node, hostname):
+    """ Send RPC message to a node to remove a hostname """
+    print "Node:", node
+    remote_name = THIS_NODE.create_remote_hostname(node, 8011)
+    remote = xmlrpclib.ServerProxy(remote_name)
+    remote.remove_remote(hostname)
+
+def remove_remote(hostname):
+    """ Remove a hostname and inform the others """
+    THIS_NODE.remove_neighbour(hostname)
+    remaining = THIS_NODE.get_neighbour_list()
+    if remaining == None:
+        return
+    for node in remaining:
+        remove(node, hostname)
+    #fill neighbour list again
 
 def start_new_node():
     """ Start a new node """
@@ -127,12 +162,18 @@ def parse_args():
 
     return parser.parse_args()
 
-def start_http():
+def start_http(caller):
     """ Try to start a HTTP server.
         On error: exit """
     try:
         server = ThreadedHTTPServer(('', THIS_NODE.port), NodeHttpHandler)
     except:
+        host, port = THIS_NODE.split_hostname(caller, ":")
+        remote_name = THIS_NODE.create_remote_hostname(host, port)
+        remote = xmlrpclib.ServerProxy(remote_name)
+        host = "localhost"
+        status = "error"
+        remote.update_node_status(host, status)
         sys.exit(1)
 
     return server
@@ -148,13 +189,15 @@ def send_ok_response(host, port):
 def register_rpc_functions():
     """ Register all the RPC functions """
     RPC.register_function(update_node_status, 'update_node_status')
+    RPC.register_function(remove_remote, 'remove_remote')
 
 if __name__ == "__main__":
     ARGS = parse_args()
     HOSTNAME = socket.gethostname()
     THIS_NODE = Node(HOSTNAME, ARGS.port)
     print "Hostname: {} Port: {}".format(THIS_NODE.hostname, THIS_NODE.port)
-    HTTP_SERVER = start_http()
+    HTTP_SERVER = start_http(HOSTNAME)
+    #CAHNGE THIS
 
     RPC = ThreadedRPCServer(('', ARGS.port + 1), SimpleXMLRPCRequestHandler, \
         allow_none=True, logRequests=True)
