@@ -100,9 +100,9 @@ def start_new_node():
         create_host_list()
 
     name = HOSTLIST.pop()
-    # Create a valid hostname
-    port = 8010
-    program = "python nutella.py --port={}".format(port)
+    name, port = THIS_NODE.split_hostname(name, ":")
+    program = "python nutella.py --port={} --caller={}".format(port, \
+        (THIS_NODE.hostname + ":" + str(THIS_NODE.port)))
     new_node = launch(name, program)
     if new_node == None:
         print "Could not start new node, but this should never happen"
@@ -146,7 +146,9 @@ def update_node_status(host, status):
 
 def create_host_list():
     """ Create a new list with available hosts """
-    HOSTLIST.append("localhost")
+    HOSTLIST.append("localhost:8010")
+    HOSTLIST.append("localhost:8020")
+    HOSTLIST.append("localhost:8030")
     return
 
 def parse_args():
@@ -154,6 +156,9 @@ def parse_args():
     default_port = 8000
     default_timeout = 60
     parser = argparse.ArgumentParser(prog="nutella", description="P2P network")
+
+    parser.add_argument("--caller", type=str, default=None,
+        help="id of the node that started this node")
 
     parser.add_argument("-p", "--port", type=int, default=default_port,
     help="port number to listen on, default: {}".format(default_port))
@@ -196,8 +201,7 @@ if __name__ == "__main__":
     HOSTNAME = socket.gethostname()
     THIS_NODE = Node(HOSTNAME, ARGS.port)
     print "Hostname: {} Port: {}".format(THIS_NODE.hostname, THIS_NODE.port)
-    HTTP_SERVER = start_http(HOSTNAME)
-    #CAHNGE THIS
+    HTTP_SERVER = start_http(ARGS.caller)
 
     RPC = ThreadedRPCServer(('', ARGS.port + 1), SimpleXMLRPCRequestHandler, \
         allow_none=True, logRequests=True)
@@ -209,8 +213,10 @@ if __name__ == "__main__":
 
     def run_rpc_server():
         """ Run the RPC server forever """
-        if ARGS.port == 8010:
-            send_ok_response("localhost", 8001)
+        if ARGS.caller != None:
+            #Need to check which name we send with
+            name, port = THIS_NODE.split_hostname(ARGS.caller, ":")
+            send_ok_response(name, port)
         print "Running RPC server"
         RPC.serve_forever()
 

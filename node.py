@@ -35,6 +35,7 @@ class Node(object):
 
     def create_remote_hostname(self, host, port):
         """ Create a RPC compatible hostname """
+        port = int(port) + 1
         hostname = "http://" + host + ":" + str(port)
         return hostname
 
