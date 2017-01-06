@@ -6,9 +6,15 @@ class Node(object):
     def __init__(self, host, port):
         self.neighbour = []
         self.hostname = host
+        self.full_name = host + ":" + str(port)
         self.port = port
         self.rpc_name = None
         self.number_of_neighbours = 5
+        self.caller = None
+
+    def set_caller(self, caller):
+        """ Set the caller variable """
+        self.caller = caller
 
     def get_neighbour_list(self):
         """ Return the neighbour list """

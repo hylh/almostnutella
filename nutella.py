@@ -65,22 +65,27 @@ class ThreadedRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
 def kill():
     """ Shutdown this node """
     neighbours = THIS_NODE.get_neighbour_list()
-    remove_host = THIS_NODE.hostname
+    if neighbours == None:
+        return shutdown()
+    remove_host = THIS_NODE.full_name
     if isinstance(neighbours, basestring):
-        #Check if it's a string, if so, only on object in list
-        host, _ = THIS_NODE.split_hostname(neighbours, ":")
-        remove(host, remove_host)
+        #Check if it's a string, if so, only one object in list
+        node = neighbours
+        remove(node, remove_host)
     else:
         for node in neighbours:
             remove(node, remove_host)
-        #Tell the other nodes that we are exiting
+    return shutdown()
+
+def shutdown():
+    """ Shutdown RPC and HTTP server """
     RPC.shutdown()
     HTTP_SERVER.shutdown()
 
 def remove(node, hostname):
     """ Send RPC message to a node to remove a hostname """
-    print "Node:", node
-    remote_name = THIS_NODE.create_remote_hostname(node, 8011)
+    host, port = THIS_NODE.split_hostname(node, ":")
+    remote_name = THIS_NODE.create_remote_hostname(host, port)
     remote = xmlrpclib.ServerProxy(remote_name)
     remote.remove_remote(hostname)
 
@@ -92,7 +97,7 @@ def remove_remote(hostname):
         return
     for node in remaining:
         remove(node, hostname)
-    #fill neighbour list again
+    #fill_neighbour_list()
 
 def start_new_node():
     """ Start a new node """
@@ -102,13 +107,69 @@ def start_new_node():
     name = HOSTLIST.pop()
     name, port = THIS_NODE.split_hostname(name, ":")
     program = "python nutella.py --port={} --caller={}".format(port, \
-        (THIS_NODE.hostname + ":" + str(THIS_NODE.port)))
+        (THIS_NODE.full_name))
+    print "GIT"
     new_node = launch(name, program)
     if new_node == None:
-        print "Could not start new node, but this should never happen"
+        print "Used all entries in the HOSTLIST!"
         return None
+    print "GOT"
     THIS_NODE.add_neighbour(new_node, port)
     return new_node
+
+def fill_neighbour_list():
+    """ Fill up neighbour list if it's not full """
+    node = iter(THIS_NODE.neighbour)
+    visited = [THIS_NODE.full_name]
+    print "hello"
+    while len(THIS_NODE.neighbour) < THIS_NODE.number_of_neighbours:
+        print "visited:", visited
+        if len(THIS_NODE.neighbour) == 0:
+            print "Caller:", THIS_NODE.caller
+            if THIS_NODE.caller in visited:
+                print "reutnring"
+                return
+            neighbour = get_remote_neighbour(THIS_NODE.caller, visited)
+        else:
+            print "Current node:", THIS_NODE.full_name
+            remote = node.next()
+            if remote == None:
+                return
+            neighbour = get_remote_neighbour(remote, visited)
+
+        if neighbour == None:
+            continue
+        if isinstance(neighbour, basestring):
+            #Only one neighbour returned
+            host, port = THIS_NODE.split_hostname(neighbour, ":")
+            THIS_NODE.add_neighbour(host, port)
+            continue
+        else:
+            for node in neighbour:
+                host, port = THIS_NODE.split_hostname(node, ":")
+                THIS_NODE.add_neighbour(host, port)
+
+def get_remote_neighbour(hostname, visited):
+    """ Connect to remote node to get neighbour list """
+    print "remote hostname is:", hostname
+    if hostname in visited:
+        return
+    else:
+        visited.append(hostname)
+
+    host, port = THIS_NODE.split_hostname(hostname, ":")
+    remote_name = THIS_NODE.create_remote_hostname(host, port)
+    remote = xmlrpclib.ServerProxy(remote_name)
+    result = remote.get_neighbours()
+    print "result:", result
+    return result
+
+
+def get_neighbours():
+    """ Remote function to get neighbour list """
+    neighbours = THIS_NODE.get_neighbour_list()
+    return neighbours
+
 
 def launch(host, commandline, stdout=None, stderr=None):
     """ Runs a cmd command either locally or on a remote host via SSH """
@@ -118,11 +179,13 @@ def launch(host, commandline, stdout=None, stderr=None):
     else:
         commandline = "ssh -f %s 'cd %s; %s'" % (host, cwd, commandline)
 
-    #print commandline
+    print commandline
 
     subprocess.Popen(commandline, shell=True, stdout=stdout, stderr=stderr)
     #Check if process started successfully
+    print "damn"
     host = check_node_status(host)
+    print "shit"
     return host
 
 def check_node_status(host, status=None):
@@ -176,7 +239,7 @@ def start_http(caller):
         host, port = THIS_NODE.split_hostname(caller, ":")
         remote_name = THIS_NODE.create_remote_hostname(host, port)
         remote = xmlrpclib.ServerProxy(remote_name)
-        host = "localhost"
+        host = THIS_NODE.full_name
         status = "error"
         remote.update_node_status(host, status)
         sys.exit(1)
@@ -187,7 +250,7 @@ def send_ok_response(host, port):
     """ Send startup "ok" response to remote node """
     remote_host = THIS_NODE.create_remote_hostname(host, port)
     remote = xmlrpclib.ServerProxy(remote_host)
-    host = "localhost"
+    host = THIS_NODE.full_name
     status = "ok"
     remote.update_node_status(host, status)
 
@@ -195,12 +258,13 @@ def register_rpc_functions():
     """ Register all the RPC functions """
     RPC.register_function(update_node_status, 'update_node_status')
     RPC.register_function(remove_remote, 'remove_remote')
+    RPC.register_function(get_neighbours, 'get_neighbours')
 
 if __name__ == "__main__":
     ARGS = parse_args()
     HOSTNAME = socket.gethostname()
     THIS_NODE = Node(HOSTNAME, ARGS.port)
-    print "Hostname: {} Port: {}".format(THIS_NODE.hostname, THIS_NODE.port)
+    print "Hostname: {}".format(THIS_NODE.full_name)
     HTTP_SERVER = start_http(ARGS.caller)
 
     RPC = ThreadedRPCServer(('', ARGS.port + 1), SimpleXMLRPCRequestHandler, \
@@ -214,11 +278,15 @@ if __name__ == "__main__":
     def run_rpc_server():
         """ Run the RPC server forever """
         if ARGS.caller != None:
+            THIS_NODE.set_caller(ARGS.caller)
             #Need to check which name we send with
-            name, port = THIS_NODE.split_hostname(ARGS.caller, ":")
+            name, port = THIS_NODE.split_hostname(THIS_NODE.caller, ":")
             send_ok_response(name, port)
+        if ARGS.caller != None:
+            fill_neighbour_list()
         print "Running RPC server"
         RPC.serve_forever()
+
 
     def shutdown_server_on_signal(signum, frame):
         """ Gracefull shutdown of server on ctrl+c """

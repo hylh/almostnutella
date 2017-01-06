@@ -15,9 +15,9 @@ class NodeTest(object):
         """ Run several different tests """
         self.test_failed_get()
         for _ in range(0, NUMBER_OF_NODES):
-            proc = mp.Process(target=self.test_post_addnode)
-            proc.start()
-            #self.test_post_addnode()
+            #proc = mp.Process(target=self.test_post_addnode)
+            #proc.start()
+            self.test_post_addnode()
         self.test_get()
         #self.test_post_shutdown()
 
@@ -66,7 +66,7 @@ class NodeTest(object):
 
 def parse_args():
     """ Parse command line arguments """
-    default_nodes = 5
+    default_nodes = 3
     default_host = "localhost"
     default_port = 8000
 
@@ -92,9 +92,6 @@ if __name__ == "__main__":
     NODE_TEST = NodeTest()
 
     START = timer()
-    NODE_TEST.test_failed_get()
-    NODE_TEST.test_post_addnode()
-    NODE_TEST.test_get()
-    NODE_TEST.test_post_shutdown()
+    NODE_TEST.run()
     END = timer()
     print "TEST used: {:.4f} seconds".format(END - START)
