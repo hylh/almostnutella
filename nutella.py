@@ -8,6 +8,7 @@ import signal
 import sys
 import os
 import xmlrpclib
+import time
 import subprocess
 from node import Node
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
@@ -68,13 +69,15 @@ def kill():
     if neighbours == None:
         return shutdown()
     remove_host = THIS_NODE.full_name
-    if isinstance(neighbours, basestring):
+    visited = [remove_host]
+    if '\n' not in neighbours:
         #Check if it's a string, if so, only one object in list
         node = neighbours
-        remove(node, remove_host)
+        remove(node, remove_host, visited)
     else:
+        neighbours = neighbours.split('\n')
         for node in neighbours:
-            remove(node, remove_host)
+            remove(node, remove_host, visited)
     return shutdown()
 
 def shutdown():
@@ -82,21 +85,31 @@ def shutdown():
     RPC.shutdown()
     HTTP_SERVER.shutdown()
 
-def remove(node, hostname):
+def remove(node, hostname, visited):
     """ Send RPC message to a node to remove a hostname """
+    if node in visited:
+        return
+    else:
+        visited.append(node)
+
     host, port = THIS_NODE.split_hostname(node, ":")
     remote_name = THIS_NODE.create_remote_hostname(host, port)
     remote = xmlrpclib.ServerProxy(remote_name)
-    remote.remove_remote(hostname)
+    remote.remove_remote(hostname, visited)
 
-def remove_remote(hostname):
+def remove_remote(hostname, visited):
     """ Remove a hostname and inform the others """
     THIS_NODE.remove_neighbour(hostname)
     remaining = THIS_NODE.get_neighbour_list()
     if remaining == None:
         return
+    if '\n' not in remaining:
+        remove(remaining, hostname, visited)
+        return
+
+    remaining = remaining.split('\n')
     for node in remaining:
-        remove(node, hostname)
+        remove(node, hostname, visited)
     #fill_neighbour_list()
 
 def start_new_node():
@@ -108,30 +121,31 @@ def start_new_node():
     name, port = THIS_NODE.split_hostname(name, ":")
     program = "python nutella.py --port={} --caller={}".format(port, \
         (THIS_NODE.full_name))
-    print "GIT"
-    new_node = launch(name, program)
+    new_node = launch(name, port, program)
     if new_node == None:
         print "Used all entries in the HOSTLIST!"
         return None
-    print "GOT"
     THIS_NODE.add_neighbour(new_node, port)
     return new_node
 
 def fill_neighbour_list():
     """ Fill up neighbour list if it's not full """
-    node = iter(THIS_NODE.neighbour)
+    if len(THIS_NODE.neighbour) != 0:
+        node = iter(THIS_NODE.neighbour)
+
+
+    # CHECK IF NO RESPONSE FROM REMOTE, ASSUME DEAD NODE
+
     visited = [THIS_NODE.full_name]
-    print "hello"
     while len(THIS_NODE.neighbour) < THIS_NODE.number_of_neighbours:
-        print "visited:", visited
+        if THIS_NODE.caller in visited:
+            return
+
         if len(THIS_NODE.neighbour) == 0:
-            print "Caller:", THIS_NODE.caller
-            if THIS_NODE.caller in visited:
-                print "reutnring"
-                return
+            host, port = THIS_NODE.split_hostname(THIS_NODE.caller, ":")
+            THIS_NODE.add_neighbour(host, port)
             neighbour = get_remote_neighbour(THIS_NODE.caller, visited)
         else:
-            print "Current node:", THIS_NODE.full_name
             remote = node.next()
             if remote == None:
                 return
@@ -139,19 +153,19 @@ def fill_neighbour_list():
 
         if neighbour == None:
             continue
-        if isinstance(neighbour, basestring):
+        if '\n' not in neighbour:
             #Only one neighbour returned
             host, port = THIS_NODE.split_hostname(neighbour, ":")
             THIS_NODE.add_neighbour(host, port)
             continue
         else:
+            neighbour = neighbour.split('\n')
             for node in neighbour:
                 host, port = THIS_NODE.split_hostname(node, ":")
                 THIS_NODE.add_neighbour(host, port)
 
 def get_remote_neighbour(hostname, visited):
     """ Connect to remote node to get neighbour list """
-    print "remote hostname is:", hostname
     if hostname in visited:
         return
     else:
@@ -161,31 +175,27 @@ def get_remote_neighbour(hostname, visited):
     remote_name = THIS_NODE.create_remote_hostname(host, port)
     remote = xmlrpclib.ServerProxy(remote_name)
     result = remote.get_neighbours()
-    print "result:", result
     return result
-
 
 def get_neighbours():
     """ Remote function to get neighbour list """
     neighbours = THIS_NODE.get_neighbour_list()
     return neighbours
 
-
-def launch(host, commandline, stdout=None, stderr=None):
+def launch(host, port, commandline, stdout=None, stderr=None):
     """ Runs a cmd command either locally or on a remote host via SSH """
     cwd = os.getcwd()
-    if host == 'localhost':
+    if host == 'hylh-pro':
         pass
     else:
         commandline = "ssh -f %s 'cd %s; %s'" % (host, cwd, commandline)
 
-    print commandline
+    #print commandline
 
     subprocess.Popen(commandline, shell=True, stdout=stdout, stderr=stderr)
     #Check if process started successfully
-    print "damn"
-    host = check_node_status(host)
-    print "shit"
+    full_name = host + ":" + port
+    host = check_node_status(full_name)
     return host
 
 def check_node_status(host, status=None):
@@ -209,9 +219,11 @@ def update_node_status(host, status):
 
 def create_host_list():
     """ Create a new list with available hosts """
-    HOSTLIST.append("localhost:8010")
-    HOSTLIST.append("localhost:8020")
-    HOSTLIST.append("localhost:8030")
+    mylist = range(1, 99)
+    for number in mylist[9::10]:
+        host = "hylh-pro:80"
+        host = host + str(number)
+        HOSTLIST.append(host)
     return
 
 def parse_args():
@@ -282,11 +294,10 @@ if __name__ == "__main__":
             #Need to check which name we send with
             name, port = THIS_NODE.split_hostname(THIS_NODE.caller, ":")
             send_ok_response(name, port)
-        if ARGS.caller != None:
+            time.sleep(2)
             fill_neighbour_list()
         print "Running RPC server"
         RPC.serve_forever()
-
 
     def shutdown_server_on_signal(signum, frame):
         """ Gracefull shutdown of server on ctrl+c """

@@ -19,7 +19,7 @@ class NodeTest(object):
             #proc.start()
             self.test_post_addnode()
         self.test_get()
-        #self.test_post_shutdown()
+        self.test_post_shutdown()
 
     def test_failed_get(self):
         """ The get request should fail """
@@ -66,7 +66,7 @@ class NodeTest(object):
 
 def parse_args():
     """ Parse command line arguments """
-    default_nodes = 3
+    default_nodes = 8
     default_host = "localhost"
     default_port = 8000
 

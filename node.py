@@ -30,9 +30,10 @@ class Node(object):
     def add_neighbour(self, host, port):
         """ Add a host to neighbour list """
         if len(self.neighbour) < self.number_of_neighbours:
-            hostname = host + ":" + str(port)
-            self.neighbour.append(hostname)
-            print "Added neighbour"
+            if ":" not in host:
+                host = host + ":" + str(port)
+            if host not in self.neighbour and host != self.full_name:
+                self.neighbour.append(host)
 
     def remove_neighbour(self, name):
         """ Remove a host from neighbour list """
