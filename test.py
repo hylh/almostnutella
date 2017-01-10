@@ -18,8 +18,18 @@ class NodeTest(object):
             #proc = mp.Process(target=self.test_post_addnode)
             #proc.start()
             self.test_post_addnode()
-        self.test_get()
-        self.test_post_shutdown()
+        neighbours = self.test_get()
+        self.shutdown_neighbour(neighbours)
+        #self.test_post_shutdown()
+
+    def shutdown_neighbour(self, neighbours):
+        neighbours = neighbours.split('\n')
+        node = neighbours[1]
+        split = node.split(":")
+        host = split[0]
+        port = split[1]
+        status, _ = self.shutdown_remote(host, port)
+        print "Status code for remote shutodwn:", status
 
     def test_failed_get(self):
         """ The get request should fail """
@@ -44,7 +54,7 @@ class NodeTest(object):
         print "Result:", res
         if status == 200:
             print "GET response OK!"
-        return
+        return res
 
     def test_post_shutdown(self):
         """ Test the shutdown of a node """
@@ -53,6 +63,16 @@ class NodeTest(object):
         print "Status code:", status
         print "Result:", res
         return
+
+    def shutdown_remote(self, host, port):
+        conn = httplib.HTTPConnection(host, port)
+        conn.request("POST", "/shutdown")
+        response = conn.getresponse()
+        status = response.status
+        data = response.read()
+        response.close()
+        conn.close()
+        return status, data
 
     def request(self, method, path, payload=None):
         """ Create a http request """

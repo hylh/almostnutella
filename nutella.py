@@ -95,7 +95,10 @@ def remove(node, hostname, visited):
     host, port = THIS_NODE.split_hostname(node, ":")
     remote_name = THIS_NODE.create_remote_hostname(host, port)
     remote = xmlrpclib.ServerProxy(remote_name)
-    remote.remove_remote(hostname, visited)
+    try:
+        remote.remove_remote(hostname, visited)
+    except:
+        return
 
 def remove_remote(hostname, visited):
     """ Remove a hostname and inform the others """
@@ -110,7 +113,6 @@ def remove_remote(hostname, visited):
     remaining = remaining.split('\n')
     for node in remaining:
         remove(node, hostname, visited)
-    #fill_neighbour_list()
 
 def start_new_node():
     """ Start a new node """
@@ -132,9 +134,6 @@ def fill_neighbour_list():
     """ Fill up neighbour list if it's not full """
     if len(THIS_NODE.neighbour) != 0:
         node = iter(THIS_NODE.neighbour)
-
-
-    # CHECK IF NO RESPONSE FROM REMOTE, ASSUME DEAD NODE
 
     visited = [THIS_NODE.full_name]
     while len(THIS_NODE.neighbour) < THIS_NODE.number_of_neighbours:
@@ -174,7 +173,13 @@ def get_remote_neighbour(hostname, visited):
     host, port = THIS_NODE.split_hostname(hostname, ":")
     remote_name = THIS_NODE.create_remote_hostname(host, port)
     remote = xmlrpclib.ServerProxy(remote_name)
-    result = remote.get_neighbours()
+
+    try:
+        result = remote.get_neighbours()
+    except:
+        THIS_NODE.remove_neighbour(hostname)
+        result = None
+
     return result
 
 def get_neighbours():
