@@ -3,6 +3,7 @@
 
 import argparse
 import httplib
+import time
 from timeit import default_timer as timer
 import multiprocessing as mp
 
@@ -19,6 +20,7 @@ class NodeTest(object):
             #proc.start()
             self.test_post_addnode()
         neighbours = self.test_get()
+        time.sleep(3)
         self.shutdown_neighbour(neighbours)
         #self.test_post_shutdown()
 

@@ -18,6 +18,20 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 HOSTLIST = []
 STATUS_DICT = {}
 
+
+''' 
+Issues:
+When only using one node to add many new nodes, it generates
+a closed loop of neighbours. This is a problem with how
+the neighbour list is generated. Either at the start up phase,
+or at the fill neighbour list phase.
+
+Have not added the function of filling the neighbour list when
+removing a node.
+
+Have not yet refactored the code (especially remove and add_neighbour).
+'''
+
 class NodeHttpHandler(BaseHTTPRequestHandler):
     """ Gnutella like HTTP request handler """
     def do_GET(self):
@@ -67,6 +81,7 @@ def kill():
     """ Shutdown this node """
     neighbours = THIS_NODE.get_neighbour_list()
     if neighbours == None:
+        print "Shutting down before we have neighbours!"
         return shutdown()
     remove_host = THIS_NODE.full_name
     visited = [remove_host]
